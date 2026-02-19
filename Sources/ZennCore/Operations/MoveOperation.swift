@@ -39,6 +39,57 @@ public class MoveOperation {
         return frames
     }
 
+    /// Merge the focused window with its neighbor in the given direction into a sub-split.
+    /// Instead of swapping, this restructures the tree by creating a new sub-container.
+    public func mergeInDirection(_ direction: Direction) -> [WindowID: Rect]? {
+        guard let workspace = state.focusedWorkspace,
+              let root = workspace.tileRoot,
+              let focusedID = state.focusedWindowID else {
+            return nil
+        }
+
+        let currentFrames = layoutEngine.calculateLayout(for: workspace)
+
+        guard let neighbor = TreeTraversal.findNeighbor(
+            in: root, from: focusedID, direction: direction, frames: currentFrames
+        ) else {
+            print("[Zenn] Merge: no neighbor found in direction \(direction)")
+            return nil
+        }
+
+        guard TreeOperations.mergeWindows(
+            root: root, sourceWindowID: focusedID, targetWindowID: neighbor.windowID
+        ) else {
+            print("[Zenn] Merge: tree operation failed")
+            return nil
+        }
+
+        let frames = layoutEngine.applyLayout(for: workspace)
+        hookDispatcher.tilingLayoutChanged(workspaceID: workspace.id)
+
+        return frames
+    }
+
+    /// Eject the focused window from its sub-split up to the parent level.
+    /// This is the inverse of merge.
+    public func eject() -> [WindowID: Rect]? {
+        guard let workspace = state.focusedWorkspace,
+              let root = workspace.tileRoot,
+              let focusedID = state.focusedWindowID else {
+            return nil
+        }
+
+        guard TreeOperations.ejectWindow(root: root, windowID: focusedID) else {
+            print("[Zenn] Eject: window is already at root level or operation failed")
+            return nil
+        }
+
+        let frames = layoutEngine.applyLayout(for: workspace)
+        hookDispatcher.tilingLayoutChanged(workspaceID: workspace.id)
+
+        return frames
+    }
+
     /// Move the focused window to a specific workspace.
     public func moveToWorkspace(_ targetNumber: Int) -> (source: [WindowID: Rect], target: [WindowID: Rect])? {
         guard let focusedID = state.focusedWindowID,

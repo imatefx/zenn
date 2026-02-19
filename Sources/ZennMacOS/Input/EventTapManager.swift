@@ -41,6 +41,7 @@ public class EventTapManager {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
 
+        print("[Zenn] Event tap created and enabled successfully")
         return true
     }
 
@@ -84,6 +85,11 @@ public class EventTapManager {
         if flags.contains(.maskShift) { modifiers.insert(.shift) }
 
         let keyString = Self.keyCodeToString(UInt16(keyCode))
+
+        // Debug: log received key events when modifiers are held
+        if !modifiers.isEmpty {
+            print("[Zenn] Key event: modifiers=\(modifiers.rawValue) key=\(keyString) (keyCode=\(keyCode))")
+        }
 
         if let handler = keyHandler, handler(modifiers, keyString) {
             // Handler consumed the event, don't pass it through

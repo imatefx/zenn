@@ -103,23 +103,32 @@ public class LuaBridge {
 
     local zenn = require("zenn")
 
-    -- Focus: Alt + h/j/k/l
-    zenn.bind({"alt"}, "h", function() zenn.focus("left") end)
-    zenn.bind({"alt"}, "l", function() zenn.focus("right") end)
-    zenn.bind({"alt"}, "j", function() zenn.focus("down") end)
-    zenn.bind({"alt"}, "k", function() zenn.focus("up") end)
+    -- Focus: Alt + Arrow Keys
+    zenn.bind({"alt"}, "left", function() zenn.focus("left") end)
+    zenn.bind({"alt"}, "right", function() zenn.focus("right") end)
+    zenn.bind({"alt"}, "down", function() zenn.focus("down") end)
+    zenn.bind({"alt"}, "up", function() zenn.focus("up") end)
 
-    -- Move: Alt+Shift + h/j/k/l
-    zenn.bind({"alt", "shift"}, "h", function() zenn.move("left") end)
-    zenn.bind({"alt", "shift"}, "l", function() zenn.move("right") end)
-    zenn.bind({"alt", "shift"}, "j", function() zenn.move("down") end)
-    zenn.bind({"alt", "shift"}, "k", function() zenn.move("up") end)
+    -- Move: Alt+Shift + Arrow Keys
+    zenn.bind({"alt", "shift"}, "left", function() zenn.move("left") end)
+    zenn.bind({"alt", "shift"}, "right", function() zenn.move("right") end)
+    zenn.bind({"alt", "shift"}, "down", function() zenn.move("down") end)
+    zenn.bind({"alt", "shift"}, "up", function() zenn.move("up") end)
 
-    -- Resize: Alt+Ctrl + h/j/k/l
-    zenn.bind({"alt", "ctrl"}, "h", function() zenn.resize("left") end)
-    zenn.bind({"alt", "ctrl"}, "l", function() zenn.resize("right") end)
-    zenn.bind({"alt", "ctrl"}, "j", function() zenn.resize("down") end)
-    zenn.bind({"alt", "ctrl"}, "k", function() zenn.resize("up") end)
+    -- Merge into split: Alt+Ctrl+Shift + Arrow Keys
+    zenn.bind({"alt", "ctrl", "shift"}, "left", function() zenn.merge("left") end)
+    zenn.bind({"alt", "ctrl", "shift"}, "right", function() zenn.merge("right") end)
+    zenn.bind({"alt", "ctrl", "shift"}, "down", function() zenn.merge("down") end)
+    zenn.bind({"alt", "ctrl", "shift"}, "up", function() zenn.merge("up") end)
+
+    -- Eject from split: Alt+E
+    zenn.bind({"alt"}, "e", function() zenn.eject() end)
+
+    -- Resize: Alt+Ctrl + Arrow Keys
+    zenn.bind({"alt", "ctrl"}, "left", function() zenn.resize("left") end)
+    zenn.bind({"alt", "ctrl"}, "right", function() zenn.resize("right") end)
+    zenn.bind({"alt", "ctrl"}, "down", function() zenn.resize("down") end)
+    zenn.bind({"alt", "ctrl"}, "up", function() zenn.resize("up") end)
 
     -- Workspaces: Alt + 1-9
     for i = 1, 9 do
@@ -160,6 +169,8 @@ public class LuaBridge {
         registerBindFunction()
         registerFocusFunction()
         registerMoveFunction()
+        registerMergeFunction()
+        registerEjectFunction()
         registerResizeFunction()
         registerWorkspaceFunction()
         registerMoveToWorkspaceFunction()
@@ -207,6 +218,7 @@ public class LuaBridge {
             let modifiers = KeyModifier.from(strings: modStrings)
             bridge.onKeybind?(modifiers, key, { [weak bridge] in
                 guard let bridge = bridge else { return }
+                print("[Zenn] Lua callback executing for key '\(key)'")
                 bridge.vm.pushRef(ref)
                 bridge.vm.call(nargs: 0, nresults: 0)
             })
@@ -223,10 +235,17 @@ public class LuaBridge {
             guard let L = L,
                   let bridge = LuaBridge.getBridge(from: L) else { return 0 }
             guard let dirStr = bridge.vm.toString(at: 1),
-                  let direction = Direction(rawValue: dirStr) else { return 0 }
+                  let direction = Direction(rawValue: dirStr) else {
+                print("[Zenn] zenn.focus(): invalid direction argument")
+                return 0
+            }
 
+            print("[Zenn] zenn.focus(\(dirStr)) called")
             if let windowID = bridge.focusManager.focusInDirection(direction) {
+                print("[Zenn] zenn.focus(): focusing window \(windowID.rawValue)")
                 bridge.onFocusChange?(windowID)
+            } else {
+                print("[Zenn] zenn.focus(): no target found")
             }
             return 0
         }
@@ -248,6 +267,38 @@ public class LuaBridge {
         }
         lua_pushcclosure(vm.L, closure, 0)
         vm.setField("move")
+    }
+
+    private func registerMergeFunction() {
+        let closure: @convention(c) (OpaquePointer?) -> Int32 = { L in
+            guard let L = L,
+                  let bridge = LuaBridge.getBridge(from: L) else { return 0 }
+            guard let dirStr = bridge.vm.toString(at: 1),
+                  let direction = Direction(rawValue: dirStr) else { return 0 }
+
+            print("[Zenn] zenn.merge(\(dirStr)) called")
+            if let frames = bridge.moveOperation.mergeInDirection(direction) {
+                bridge.onApplyFrames?(frames)
+            }
+            return 0
+        }
+        lua_pushcclosure(vm.L, closure, 0)
+        vm.setField("merge")
+    }
+
+    private func registerEjectFunction() {
+        let closure: @convention(c) (OpaquePointer?) -> Int32 = { L in
+            guard let L = L,
+                  let bridge = LuaBridge.getBridge(from: L) else { return 0 }
+
+            print("[Zenn] zenn.eject() called")
+            if let frames = bridge.moveOperation.eject() {
+                bridge.onApplyFrames?(frames)
+            }
+            return 0
+        }
+        lua_pushcclosure(vm.L, closure, 0)
+        vm.setField("eject")
     }
 
     private func registerResizeFunction() {

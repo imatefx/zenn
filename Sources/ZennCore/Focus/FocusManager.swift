@@ -14,14 +14,24 @@ public class FocusManager {
     /// Move focus in a cardinal direction.
     /// Returns the window ID that should receive focus, or nil if no valid target.
     public func focusInDirection(_ direction: Direction) -> WindowID? {
-        guard let currentWorkspace = state.focusedWorkspace,
-              let root = currentWorkspace.tileRoot,
-              let focusedID = state.focusedWindowID else {
+        guard let currentWorkspace = state.focusedWorkspace else {
+            print("[Zenn] Focus: no focused workspace")
+            return nil
+        }
+        guard let root = currentWorkspace.tileRoot else {
+            print("[Zenn] Focus: workspace has no tile root")
+            return nil
+        }
+        guard let focusedID = state.focusedWindowID else {
+            print("[Zenn] Focus: no focused window ID")
             return nil
         }
 
+        print("[Zenn] Focus \(direction): from window \(focusedID.rawValue), tree has \(root.allWindowIDs.count) windows")
+
         // Calculate current frames for geometric neighbor finding
         let frames = layoutEngine.calculateLayout(for: currentWorkspace)
+        print("[Zenn] Focus: calculated \(frames.count) frames")
 
         // Find the neighbor in the given direction
         guard let neighbor = TreeTraversal.findNeighbor(
@@ -30,9 +40,11 @@ public class FocusManager {
             direction: direction,
             frames: frames
         ) else {
+            print("[Zenn] Focus: no neighbor found in direction \(direction)")
             return nil
         }
 
+        print("[Zenn] Focus: moving to window \(neighbor.windowID.rawValue) (\(neighbor.appName))")
         state.setFocus(to: neighbor.windowID)
         return neighbor.windowID
     }

@@ -16,6 +16,7 @@ public class HotkeyManager {
     /// Register a keybinding.
     public func bind(modifiers: KeyModifier, key: String, action: @escaping () -> Void) {
         bindings.append((modifiers: modifiers, key: key.lowercased(), action: action))
+        print("[Zenn] Bound hotkey: \(modifiers) + \(key.lowercased()) (total: \(bindings.count))")
     }
 
     /// Register a keybinding from modifier strings.
@@ -46,6 +47,7 @@ public class HotkeyManager {
         let normalizedKey = key.lowercased()
         for binding in bindings {
             if binding.modifiers == modifiers && binding.key == normalizedKey {
+                print("[Zenn] Hotkey matched: \(normalizedKey)")
                 binding.action()
                 return true  // Consumed
             }

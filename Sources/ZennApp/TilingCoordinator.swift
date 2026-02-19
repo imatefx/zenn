@@ -162,17 +162,40 @@ public class TilingCoordinator {
 
     private func discoverExistingWindows() {
         let windows = windowDiscovery.discoverWindows()
+        print("[Zenn] Discovered \(windows.count) windows")
         guard let primaryMonitor = state.primaryMonitor,
-              let workspace = primaryMonitor.activeWorkspace else { return }
+              let workspace = primaryMonitor.activeWorkspace else {
+            print("[Zenn] No primary monitor or workspace found")
+            return
+        }
+
+        let ownPID = ProcessInfo.processInfo.processIdentifier
 
         for window in windows {
-            guard !window.isMinimized else { continue }
+            guard !window.isMinimized else {
+                print("[Zenn]   Skipping minimized: \(window.appName) (\(window.windowID.rawValue))")
+                continue
+            }
+            guard window.pid != ownPID else {
+                print("[Zenn]   Skipping own window: \(window.windowID.rawValue)")
+                continue
+            }
+            guard !window.windowID.isNull else {
+                print("[Zenn]   Skipping null window ID")
+                continue
+            }
+            guard window.frame.width >= 50 && window.frame.height >= 50 else {
+                print("[Zenn]   Skipping small window: \(window.appName) (\(window.frame.width)x\(window.frame.height))")
+                continue
+            }
+
+            print("[Zenn]   Tiling: \(window.appName) - \(window.title) (id=\(window.windowID.rawValue), frame=\(window.frame))")
 
             // Register AX reference
             virtualWorkspaceManager.registerAXWindow(window.axWindow)
 
             // Tile the window
-            _ = tileOperation.tileWindow(
+            let frames = tileOperation.tileWindow(
                 windowID: window.windowID,
                 appName: window.appName,
                 appBundleID: window.appBundleID,
@@ -182,7 +205,13 @@ public class TilingCoordinator {
                 on: workspace.id,
                 monitorID: primaryMonitor.displayID
             )
+            if let f = frames {
+                print("[Zenn]   Layout updated: \(f.count) frames")
+            }
         }
+
+        print("[Zenn] Total tiled windows: \(workspace.tileRoot?.allWindowIDs.count ?? 0)")
+        print("[Zenn] Focused window: \(state.focusedWindowID?.rawValue ?? 0)")
     }
 
     private func setupAppObservers() {
@@ -210,8 +239,9 @@ public class TilingCoordinator {
             self?.handleWindowEvent(event)
         }
 
-        // Observe all running apps with regular activation policy
-        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+        // Observe all running apps with regular activation policy (skip self)
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app.processIdentifier != ownPID {
             axObserverManager.observe(pid: app.processIdentifier)
         }
     }
@@ -219,7 +249,8 @@ public class TilingCoordinator {
     // MARK: - Event Handlers
 
     private func handleAppLaunched(_ app: NSRunningApplication) {
-        guard app.activationPolicy == .regular else { return }
+        guard app.activationPolicy == .regular,
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
         let bundleID = app.bundleIdentifier ?? ""
         let appName = app.localizedName ?? bundleID
 
@@ -309,15 +340,27 @@ public class TilingCoordinator {
     }
 
     private func handleWindowCreated(pid: pid_t, element: AXUIElement) {
+        // Skip our own process and pid 0 (focus border overlay, system UI, etc.)
+        guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier else { return }
+
         guard let axWindow = AXWindow(element: element, pid: pid),
               axWindow.isStandardWindow,
+              !axWindow.windowID.isNull,
               !state.windowRegistry.contains(axWindow.windowID) else { return }
 
         guard let frame = axWindow.frame else { return }
 
+        // Skip tiny windows (transient UI elements, tooltips, etc.)
+        guard frame.width >= 50 && frame.height >= 50 else {
+            print("[Zenn] Skipping small window: \(frame.width)x\(frame.height) (id=\(axWindow.windowID.rawValue))")
+            return
+        }
+
         let app = NSRunningApplication(processIdentifier: pid)
         let appName = app?.localizedName ?? ""
         let bundleID = app?.bundleIdentifier ?? ""
+
+        print("[Zenn] New window created: \(appName) (id=\(axWindow.windowID.rawValue), pid=\(pid))")
 
         guard let monitor = state.focusedMonitor ?? state.primaryMonitor,
               let workspace = monitor.activeWorkspace else { return }
@@ -376,6 +419,9 @@ public class TilingCoordinator {
         let appName = app.localizedName ?? bundleID
         let pid = app.processIdentifier
 
+        // Skip our own app
+        guard pid != ProcessInfo.processInfo.processIdentifier else { return }
+
         let axApp = AXApplication(pid: pid, appName: appName, bundleID: bundleID)
         let windows = axApp.tileableWindows()
 
@@ -383,8 +429,10 @@ public class TilingCoordinator {
               let workspace = monitor.activeWorkspace else { return }
 
         for axWindow in windows {
-            guard !state.windowRegistry.contains(axWindow.windowID),
-                  let frame = axWindow.frame else { continue }
+            guard !axWindow.windowID.isNull,
+                  !state.windowRegistry.contains(axWindow.windowID),
+                  let frame = axWindow.frame,
+                  frame.width >= 50 && frame.height >= 50 else { continue }
 
             virtualWorkspaceManager.registerAXWindow(axWindow)
 
@@ -561,7 +609,11 @@ public class TilingCoordinator {
 
     /// Switch to a workspace number on the focused monitor.
     public func switchToWorkspace(_ number: Int) {
-        guard let monitor = state.focusedMonitor ?? state.primaryMonitor else { return }
+        print("[Zenn] Switching to workspace \(number)")
+        guard let monitor = state.focusedMonitor ?? state.primaryMonitor else {
+            print("[Zenn] No focused or primary monitor")
+            return
+        }
 
         let previousNumber = monitor.activeWorkspaceNumber
 
