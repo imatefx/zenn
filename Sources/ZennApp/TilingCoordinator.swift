@@ -619,10 +619,12 @@ public class TilingCoordinator {
 
         // Back-and-forth: if switching to the same workspace, go back
         if number == previousNumber {
-            if let prevWS = monitor.activeWorkspace?.previousWorkspaceID {
+            if let prevWS = monitor.activeWorkspace?.previousWorkspaceID,
+               prevWS.number != number {
                 switchToWorkspace(prevWS.number)
                 return
             }
+            // No valid previous workspace or same as current — do nothing
             return
         }
 
