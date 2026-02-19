@@ -1,0 +1,8 @@
+module CLua [system] {
+    header "/opt/homebrew/include/lua/lua.h"
+    header "/opt/homebrew/include/lua/lualib.h"
+    header "/opt/homebrew/include/lua/lauxlib.h"
+    header "/opt/homebrew/include/lua/luaconf.h"
+    link "lua"
+    export *
+}
