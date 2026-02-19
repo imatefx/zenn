@@ -214,6 +214,7 @@ public class TilingCoordinator {
         print("[Zenn] Focused window: \(state.focusedWindowID?.rawValue ?? 0)")
     }
 
+
     private func setupAppObservers() {
         launchObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didLaunchApplicationNotification,
@@ -476,11 +477,8 @@ public class TilingCoordinator {
                     workspace.defaultSplitAxis = wsSnap.defaultSplitAxis
                     workspace.gapOverride = wsSnap.gapOverride
 
-                    // Restore tree structure (windows will be re-associated during discovery)
-                    if let treeSnap = wsSnap.treeSnapshot {
-                        let restoredNode = statePersistence.restoreTree(from: treeSnap)
-                        workspace.tileRoot = restoredNode.containerNode
-                    }
+                    // Don't restore tree structure — window IDs get reused across sessions
+                    // causing duplicate nodes. The tree is rebuilt from discovered windows.
                 }
 
                 // Restore active workspace
@@ -628,9 +626,13 @@ public class TilingCoordinator {
             return
         }
 
-        // Hide current workspace windows
+        // Hide all windows on current workspace (tiled + floating)
         if let currentWorkspace = monitor.activeWorkspace {
-            let windowIDs = currentWorkspace.tileRoot?.allWindowIDs ?? []
+            var windowIDs = currentWorkspace.tileRoot?.allWindowIDs ?? []
+            // Also hide floating windows on this workspace
+            let floatingIDs = state.windowRegistry.floatingWindows(on: currentWorkspace.id).map { $0.windowID }
+            windowIDs.append(contentsOf: floatingIDs)
+            print("[Zenn] Hiding \(windowIDs.count) windows from workspace \(previousNumber)")
             virtualWorkspaceManager.hideWindows(windowIDs)
         }
 
@@ -640,6 +642,7 @@ public class TilingCoordinator {
         // Show new workspace windows
         if let newWorkspace = monitor.activeWorkspace {
             let frames = layoutEngine.applyLayout(for: newWorkspace)
+            print("[Zenn] Showing \(frames.count) windows on workspace \(number)")
             virtualWorkspaceManager.showWindows(frames)
 
             // Focus the workspace's focused window

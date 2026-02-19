@@ -31,7 +31,7 @@ public class VirtualWorkspaceManager {
     public func hideWindows(_ windowIDs: [WindowID]) {
         for windowID in windowIDs {
             guard let axWindow = axWindows[windowID] else { continue }
-            // Save current position before hiding
+            // Save current frame before hiding (we need to restore size too)
             if let frame = axWindow.frame {
                 savedPositions[windowID] = frame
             }

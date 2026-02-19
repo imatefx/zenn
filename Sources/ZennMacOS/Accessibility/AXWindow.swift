@@ -65,8 +65,8 @@ public class AXWindow {
     }
 
     /// Move the window offscreen (for virtual workspace hiding).
-    public func moveOffscreen() {
-        let offscreenPoint = CGPoint(x: -99999, y: -99999)
-        AXHelpers.setPosition(offscreenPoint, of: element)
+    @discardableResult
+    public func moveOffscreen() -> Bool {
+        AXHelpers.setPosition(CGPoint(x: 10000, y: 10000), of: element)
     }
 }
