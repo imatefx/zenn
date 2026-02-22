@@ -43,9 +43,11 @@ public class StatePersistence {
     }
 
     /// Create a snapshot from the current world state.
+    /// Only saves workspace settings (gaps, layout mode, split axis).
+    /// Tree structure and window IDs are NOT saved — they're rebuilt from
+    /// discovered windows on each launch since macOS reuses CGWindowIDs.
     public func createSnapshot(from state: WorldState) -> StateSnapshot {
         var snapshot = StateSnapshot()
-        snapshot.focusedWindowID = state.focusedWindowID?.rawValue
         snapshot.globalGaps = state.globalGaps
 
         for (_, monitor) in state.monitors {
@@ -56,20 +58,13 @@ public class StatePersistence {
             )
 
             for (number, workspace) in monitor.workspaces {
-                var wsSnap = WorkspaceSnapshot(
+                let wsSnap = WorkspaceSnapshot(
                     number: number,
                     name: workspace.id.name,
                     layoutMode: workspace.layoutMode,
                     defaultSplitAxis: workspace.defaultSplitAxis,
-                    focusedWindowID: workspace.focusedWindowID?.rawValue,
                     gapOverride: workspace.gapOverride
                 )
-
-                if let root = workspace.tileRoot {
-                    wsSnap.treeSnapshot = snapshotTreeNode(.container(root))
-                    wsSnap.windowIDs = root.allWindowIDs.map { $0.rawValue }
-                }
-
                 monitorSnap.workspaces.append(wsSnap)
             }
 
@@ -79,45 +74,4 @@ public class StatePersistence {
         return snapshot
     }
 
-    private func snapshotTreeNode(_ node: TreeNode) -> TreeNodeSnapshot {
-        switch node {
-        case .container(let container):
-            return .container(
-                axis: container.axis,
-                ratios: container.ratios.map { Double($0) },
-                children: container.children.map { snapshotTreeNode($0) }
-            )
-        case .window(let window):
-            return .window(
-                windowID: window.windowID.rawValue,
-                appBundleID: window.appBundleID,
-                appName: window.appName
-            )
-        }
-    }
-
-    /// Restore tree structure from a snapshot (windows are re-associated during discovery).
-    public func restoreTree(from snapshot: TreeNodeSnapshot) -> TreeNode {
-        switch snapshot {
-        case .container(let axis, let ratios, let children):
-            let container = ContainerNode(axis: axis)
-            for childSnap in children {
-                let childNode = restoreTree(from: childSnap)
-                container.appendChild(childNode)
-            }
-            // Override the equalized ratios with the saved ratios
-            if ratios.count == container.children.count {
-                container.ratios = ratios.map { CGFloat($0) }
-            }
-            return .container(container)
-
-        case .window(let windowID, let appBundleID, let appName):
-            let window = WindowNode(
-                windowID: WindowID(windowID),
-                appBundleID: appBundleID,
-                appName: appName
-            )
-            return .window(window)
-        }
-    }
 }

@@ -1,15 +1,15 @@
 import Foundation
 import ZennShared
 
-/// Codable snapshot of the entire world state for persistence.
+/// Codable snapshot of workspace settings for persistence.
+/// Does NOT include tree structure or window IDs — those are rebuilt
+/// from discovered windows on each launch.
 public struct StateSnapshot: Codable {
     public var monitors: [MonitorSnapshot]
-    public var focusedWindowID: UInt32?
     public var globalGaps: GapConfig
 
-    public init(monitors: [MonitorSnapshot] = [], focusedWindowID: UInt32? = nil, globalGaps: GapConfig = .zero) {
+    public init(monitors: [MonitorSnapshot] = [], globalGaps: GapConfig = .zero) {
         self.monitors = monitors
-        self.focusedWindowID = focusedWindowID
         self.globalGaps = globalGaps
     }
 }
@@ -33,9 +33,6 @@ public struct WorkspaceSnapshot: Codable {
     public var name: String?
     public var layoutMode: LayoutMode
     public var defaultSplitAxis: SplitAxis
-    public var windowIDs: [UInt32]
-    public var treeSnapshot: TreeNodeSnapshot?
-    public var focusedWindowID: UInt32?
     public var gapOverride: GapConfig?
 
     public init(
@@ -43,23 +40,12 @@ public struct WorkspaceSnapshot: Codable {
         name: String? = nil,
         layoutMode: LayoutMode = .tiling,
         defaultSplitAxis: SplitAxis = .horizontal,
-        windowIDs: [UInt32] = [],
-        treeSnapshot: TreeNodeSnapshot? = nil,
-        focusedWindowID: UInt32? = nil,
         gapOverride: GapConfig? = nil
     ) {
         self.number = number
         self.name = name
         self.layoutMode = layoutMode
         self.defaultSplitAxis = defaultSplitAxis
-        self.windowIDs = windowIDs
-        self.treeSnapshot = treeSnapshot
-        self.focusedWindowID = focusedWindowID
         self.gapOverride = gapOverride
     }
-}
-
-public indirect enum TreeNodeSnapshot: Codable {
-    case container(axis: SplitAxis, ratios: [Double], children: [TreeNodeSnapshot])
-    case window(windowID: UInt32, appBundleID: String, appName: String)
 }

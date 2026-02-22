@@ -37,40 +37,50 @@ final class StatePersistenceTests: XCTestCase {
         let snapshot = try persistence.load()
 
         XCTAssertEqual(snapshot.globalGaps.inner, 8)
-        XCTAssertEqual(snapshot.focusedWindowID, 1)
         XCTAssertEqual(snapshot.monitors.count, 1)
         XCTAssertEqual(snapshot.monitors[0].displayID, 1)
+
+        // Verify workspace settings were saved (monitors have 9 workspaces by default)
+        let monitorSnap = snapshot.monitors[0]
+        XCTAssertEqual(monitorSnap.workspaces.count, 9)
+        // Find workspace 1 in the snapshot
+        let ws1 = monitorSnap.workspaces.first { $0.number == 1 }
+        XCTAssertNotNil(ws1)
+        XCTAssertEqual(ws1?.layoutMode, .tiling)
     }
 
-    func testTreeSnapshotRestore() {
-        let persistence = StatePersistence(stateFilePath: "/dev/null")
+    func testSnapshotOnlySavesWorkspaceSettings() throws {
+        let tmpPath = NSTemporaryDirectory() + "zenn-test-state-settings-\(UUID()).json"
+        defer { try? FileManager.default.removeItem(atPath: tmpPath) }
 
-        let snapshot = TreeNodeSnapshot.container(
-            axis: .horizontal,
-            ratios: [0.6, 0.4],
-            children: [
-                .window(windowID: 1, appBundleID: "com.a", appName: "A"),
-                .container(
-                    axis: .vertical,
-                    ratios: [0.5, 0.5],
-                    children: [
-                        .window(windowID: 2, appBundleID: "com.b", appName: "B"),
-                        .window(windowID: 3, appBundleID: "com.c", appName: "C"),
-                    ]
-                ),
-            ]
+        let persistence = StatePersistence(stateFilePath: tmpPath)
+
+        let state = WorldState()
+        state.globalGaps = GapConfig(inner: 10, outerAll: 5)
+
+        let monitor = Monitor(
+            displayID: DisplayID(1),
+            frame: Rect(x: 0, y: 0, width: 1920, height: 1080),
+            visibleFrame: Rect(x: 0, y: 25, width: 1920, height: 1055)
         )
+        state.addMonitor(monitor)
 
-        let restored = persistence.restoreTree(from: snapshot)
+        let workspace = monitor.workspace(number: 1)
+        workspace.layoutMode = .monocle
+        workspace.defaultSplitAxis = .vertical
+        workspace.gapOverride = GapConfig(inner: 4, outerAll: 2)
 
-        guard case .container(let root) = restored else {
-            XCTFail("Expected container")
-            return
-        }
+        // Add windows (should NOT be persisted)
+        let w1 = WindowNode(windowID: WindowID(1), appBundleID: "com.test", appName: "Test")
+        workspace.insertWindow(w1)
 
-        XCTAssertEqual(root.axis, .horizontal)
-        XCTAssertEqual(root.ratios.map { Double($0) }, [0.6, 0.4])
-        XCTAssertEqual(root.children.count, 2)
-        XCTAssertEqual(root.allWindowIDs.count, 3)
+        try persistence.save(state: state)
+        let snapshot = try persistence.load()
+
+        // Workspace settings should be saved
+        let wsSnap = snapshot.monitors[0].workspaces[0]
+        XCTAssertEqual(wsSnap.layoutMode, .monocle)
+        XCTAssertEqual(wsSnap.defaultSplitAxis, .vertical)
+        XCTAssertEqual(wsSnap.gapOverride?.inner, 4)
     }
 }
