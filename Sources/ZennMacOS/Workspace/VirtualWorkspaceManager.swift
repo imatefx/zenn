@@ -27,22 +27,22 @@ public class VirtualWorkspaceManager {
         axWindows[windowID]
     }
 
-    /// Hide windows by moving them offscreen (for workspace switching).
+    /// Hide windows by ordering them out of the visible window list.
     public func hideWindows(_ windowIDs: [WindowID]) {
         for windowID in windowIDs {
             guard let axWindow = axWindows[windowID] else { continue }
-            // Save current frame before hiding (we need to restore size too)
             if let frame = axWindow.frame {
                 savedPositions[windowID] = frame
             }
-            axWindow.moveOffscreen()
+            axWindow.orderOut()
         }
     }
 
-    /// Show windows by restoring them to their calculated positions.
+    /// Show windows by ordering them back in and restoring their frames.
     public func showWindows(_ frames: [WindowID: Rect]) {
         for (windowID, frame) in frames {
             guard let axWindow = axWindows[windowID] else { continue }
+            axWindow.orderIn()
             axWindow.setFrame(frame)
             savedPositions.removeValue(forKey: windowID)
         }

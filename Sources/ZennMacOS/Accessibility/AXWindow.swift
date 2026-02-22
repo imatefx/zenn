@@ -1,5 +1,6 @@
 import Foundation
 import ApplicationServices
+import CPrivateAPI
 import ZennShared
 
 /// High-level wrapper around an AXUIElement representing a window.
@@ -64,9 +65,15 @@ public class AXWindow {
         AXHelpers.focusApp(pid: pid)
     }
 
-    /// Move the window offscreen (for virtual workspace hiding).
+    /// Hide the window by ordering it out of the visible window list.
     @discardableResult
-    public func moveOffscreen() -> Bool {
-        AXHelpers.setPosition(CGPoint(x: 10000, y: 10000), of: element)
+    public func orderOut() -> Bool {
+        CPrivateAPI_HideWindow(windowID.rawValue)
+    }
+
+    /// Show the window by ordering it back into the visible window list.
+    @discardableResult
+    public func orderIn() -> Bool {
+        CPrivateAPI_ShowWindow(windowID.rawValue)
     }
 }

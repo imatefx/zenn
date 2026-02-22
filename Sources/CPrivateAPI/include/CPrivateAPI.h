@@ -8,4 +8,11 @@
 /// Returns kCGNullWindowID (0) on failure.
 CGWindowID CPrivateAPI_GetWindowID(AXUIElementRef element);
 
+/// Hide a window by ordering it out of the visible window list.
+/// Uses the private CGSOrderWindow API (does not require SIP disable).
+bool CPrivateAPI_HideWindow(CGWindowID windowID);
+
+/// Show a previously hidden window by ordering it back into the window list.
+bool CPrivateAPI_ShowWindow(CGWindowID windowID);
+
 #endif /* CPrivateAPI_h */
